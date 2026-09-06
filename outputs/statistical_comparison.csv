@@ -1,0 +1,2 @@
+model_a,model_b,method,auc_difference,ci_low,ci_high,p_value
+Paper ANN,Ensemble,paired bootstrap,0.033527696793002826,0.001289509918143203,0.07197482147321937,0.022
