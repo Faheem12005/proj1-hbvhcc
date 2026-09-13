@@ -120,15 +120,25 @@ def compute_metrics(y_true: np.ndarray, y_prob: np.ndarray, threshold: float = 0
 
 
 def paper_gene_score(train_expr: pd.DataFrame, val_expr: pd.DataFrame, genes: list[str]) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
-    """Strict paper-style GeneScore using training medians only. The paper reports all 3 genes are downregulated in HCC."""
+    """Strict paper-style GeneScore. Each cohort is thresholded against its OWN median
+    (unsupervised — no label leakage), not the other cohort's median. Using one cohort's
+    median on a different platform's absolute expression scale silently collapses every
+    sample in that cohort onto the same side of the threshold."""
     training_medians = train_expr.loc[genes].median(axis=1).to_dict()
+    validation_medians = val_expr.loc[genes].median(axis=1).to_dict()
     downregulated = set(genes)
+
     train_score = pd.DataFrame(index=genes, columns=train_expr.columns, dtype=int)
     val_score = pd.DataFrame(index=genes, columns=val_expr.columns, dtype=int)
     for gene in genes:
-        med = float(training_medians[gene])
-        train_score.loc[gene] = (train_expr.loc[gene] <= med).astype(int) if gene in downregulated else (train_expr.loc[gene] > med).astype(int)
-        val_score.loc[gene] = (val_expr.loc[gene] <= med).astype(int) if gene in downregulated else (val_expr.loc[gene] > med).astype(int)
+        train_med = float(training_medians[gene])
+        val_med = float(validation_medians[gene])
+        if gene in downregulated:
+            train_score.loc[gene] = (train_expr.loc[gene] <= train_med).astype(int)
+            val_score.loc[gene] = (val_expr.loc[gene] <= val_med).astype(int)
+        else:
+            train_score.loc[gene] = (train_expr.loc[gene] > train_med).astype(int)
+            val_score.loc[gene] = (val_expr.loc[gene] > val_med).astype(int)
     return train_score, val_score, training_medians
 
 
@@ -286,6 +296,11 @@ def prepare_shared_dataset(train_expr: pd.DataFrame, valid_expr: pd.DataFrame, g
     train_features = train_expr.loc[genes].copy()
     valid_features = valid_expr.loc[genes].copy()
     return train_features, valid_features
+def zscore_per_cohort(expr: pd.DataFrame) -> pd.DataFrame:
+    """Standardize each gene within its own cohort (mean/std computed per-cohort, no
+    labels involved — this is not leakage). Makes 'high vs low' comparable across
+    platforms with different absolute expression scales."""
+    return expr.sub(expr.mean(axis=1), axis=0).div(expr.std(axis=1), axis=0)
 
 
 def run_research_experiment() -> dict:
@@ -307,8 +322,10 @@ def run_research_experiment() -> dict:
 
     paper_result = fit_paper_ann(train_expr, y_train, valid_expr, y_valid, genes)
 
-    X_train = train_expr.T
-    X_valid = valid_expr.T
+    train_expr_z = zscore_per_cohort(train_expr)
+    valid_expr_z = zscore_per_cohort(valid_expr)
+    X_train = train_expr_z.T
+    X_valid = valid_expr_z.T
 
     ensemble_result = fit_best_ensemble(X_train, y_train, cv_folds=5)
     ensemble_models = ensemble_result.models

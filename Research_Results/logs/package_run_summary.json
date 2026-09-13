@@ -1,6 +1,6 @@
 {
   "data_source": "real GEO files",
-  "python_executable": "D:\\projects\\proj1-hbvhcc\\.venv\\Scripts\\python.exe",
+  "python_executable": "/Users/ananya/Downloads/VIT/proj1-hbvhcc/venv/bin/python",
   "random_state": 42,
   "training_samples": 107,
   "validation_samples": 140,
@@ -11,12 +11,12 @@
     "CatBoost",
     "Ensemble"
   ],
-  "metrics_file": "D:\\projects\\proj1-hbvhcc\\Research_Results\\metrics\\model_metrics_complete.csv",
+  "metrics_file": "/Users/ananya/Downloads/VIT/proj1-hbvhcc/Research_Results/metrics/model_metrics_complete.csv",
   "paired_bootstrap": {
     "method": "paired bootstrap AUC difference",
-    "observed_difference": 0.037340210809598595,
-    "ci_low": 0.00373680662783458,
-    "ci_high": 0.07842200710737683,
-    "p_value": 0.014
+    "observed_difference": 0.01491365777080067,
+    "ci_low": -0.022871814613526602,
+    "ci_high": 0.052759213501292035,
+    "p_value": 0.2105
   }
 }

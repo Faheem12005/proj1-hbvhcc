@@ -43,6 +43,7 @@ from run_pipeline import (
     paired_bootstrap_auc_difference,
     prepare_shared_dataset,
     validate_cohort_counts,
+    zscore_per_cohort,
 )
 from step6_ensemble_model import fit_best_ensemble, predict_ensemble
 from step7_shap_explain import compute_shap_values, ensemble_mean_abs_shap, summary_plot
@@ -157,7 +158,15 @@ def plot_pr(y_true: np.ndarray, probabilities: dict[str, np.ndarray]) -> None:
 
 def plot_confusion_matrices(y_true: np.ndarray, probabilities: dict[str, np.ndarray]) -> None:
     for model in ["Paper ANN", "XGBoost", "Ensemble"]:
-        prediction = (probabilities[model] >= 0.5).astype(int)
+        prob = probabilities[model]
+
+        # Youden's J: threshold that maximizes (sensitivity + specificity - 1)
+        fpr, tpr, thresholds = roc_curve(y_true, prob)
+        j_scores = tpr - fpr
+        best_idx = np.argmax(j_scores)
+        best_threshold = float(thresholds[best_idx])
+
+        prediction = (prob >= best_threshold).astype(int)
         matrix = confusion_matrix(y_true, prediction, labels=[0, 1])
         row_percent = matrix / matrix.sum(axis=1, keepdims=True) * 100
         fig, ax = plt.subplots(figsize=(5, 4.5))
@@ -166,9 +175,15 @@ def plot_confusion_matrices(y_true: np.ndarray, probabilities: dict[str, np.ndar
         for i in range(2):
             for j in range(2):
                 ax.text(j, i, f"{matrix[i, j]}\n({row_percent[i, j]:.1f}%)", ha="center", va="center", fontsize=12)
-        ax.set(xticks=[0, 1], yticks=[0, 1], xticklabels=["HBV", "HBV-HCC"], yticklabels=["HBV", "HBV-HCC"], xlabel="Predicted class", ylabel="Actual class", title=f"{model}: validation confusion matrix")
+        ax.set(
+            xticks=[0, 1], yticks=[0, 1],
+            xticklabels=["HBV", "HBV-HCC"], yticklabels=["HBV", "HBV-HCC"],
+            xlabel="Predicted class", ylabel="Actual class",
+            title=f"{model}: validation confusion matrix\n(threshold={best_threshold:.3f}, Youden's J)",
+        )
         filename = "fig04_confusion_matrix_primary_model.png" if model == "Paper ANN" else "fig05_confusion_matrix_ensemble.png" if model == "Ensemble" else "fig06_confusion_matrix_xgboost.png"
         save_figure(fig, FIGURES / "classification" / filename)
+        print(f"{model}: chosen threshold = {best_threshold:.4f} (was fixed at 0.5)")
 
 
 def plot_thresholds(y_true: np.ndarray, probability: np.ndarray) -> None:
@@ -268,15 +283,17 @@ def main() -> None:
     train_expr, valid_expr, y_train, y_valid = load_data()
     validate_cohort_counts(y_train, y_valid)
     paper = fit_paper_ann(train_expr, y_train, valid_expr, y_valid, PAPER_FEATURE_GENES)
-    ensemble = fit_best_ensemble(train_expr.T, y_train, cv_folds=5)
+
+    train_expr_z = zscore_per_cohort(train_expr)
+    valid_expr_z = zscore_per_cohort(valid_expr)
+    ensemble = fit_best_ensemble(train_expr_z.T, y_train, cv_folds=5)
     probabilities = {
         "Paper ANN": paper["valid_prob"],
-        "XGBoost": ensemble.models["xgboost"].predict_proba(valid_expr.T)[:, 1],
-        "LightGBM": ensemble.models["lightgbm"].predict_proba(valid_expr.T)[:, 1],
-        "CatBoost": ensemble.models["catboost"].predict_proba(valid_expr.T)[:, 1],
+        "XGBoost": ensemble.models["xgboost"].predict_proba(valid_expr_z.T)[:, 1],
+        "LightGBM": ensemble.models["lightgbm"].predict_proba(valid_expr_z.T)[:, 1],
+        "CatBoost": ensemble.models["catboost"].predict_proba(valid_expr_z.T)[:, 1],
     }
-    probabilities["Ensemble"] = predict_ensemble(ensemble.models, valid_expr.T).to_numpy()
-
+    probabilities["Ensemble"] = predict_ensemble(ensemble.models, valid_expr_z.T).to_numpy()
     metric_table = pd.DataFrame([metrics_row(model, y_valid, probabilities[model]) for model in MODELS])
     metric_table.to_csv(METRICS / "model_metrics_complete.csv", index=False, float_format="%.15g")
     metric_table.round({column: 3 for column in metric_table.select_dtypes(include=[np.number]).columns}).to_csv(TABLES / "table02_model_performance_paper.csv", index=False)
@@ -298,11 +315,10 @@ def main() -> None:
     plot_calibration(y_valid, probabilities)
     plot_feature_expression(train_expr, y_train)
 
-    shap_values = compute_shap_values(ensemble.models, train_expr.T)
+    shap_values = compute_shap_values(ensemble.models, train_expr_z.T)
     shap_table = ensemble_mean_abs_shap(shap_values, train_expr.index)
     shap_table.to_csv(TABLES / "table03_shap_gene_importance.csv", index=False, float_format="%.15g")
-    summary_plot(shap_values, train_expr.T, "xgboost", str(FIGURES / "supplementary" / "fig10_shap_summary_xgboost.png"))
-
+    summary_plot(shap_values, train_expr_z.T, "xgboost", str(FIGURES / "supplementary" / "fig10_shap_summary_xgboost.png"))
     comparison = paired_bootstrap_auc_difference(y_valid, probabilities["Paper ANN"], probabilities["Ensemble"])
     pd.DataFrame([comparison]).to_csv(METRICS / "statistical_comparison_paired_bootstrap.csv", index=False, float_format="%.15g")
     pd.DataFrame([{"model_a": "Paper ANN", "model_b": "Ensemble", **comparison}]).to_csv(TABLES / "table04_statistical_comparison.csv", index=False)

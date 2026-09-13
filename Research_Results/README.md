@@ -1,6 +1,6 @@
 # HBV-HCC Python Research Results
 
-Generated on 2026-09-13 from the current Python implementation in `D:\projects\proj1-hbvhcc` using the project-local `.venv`. Existing `outputs/` files were preserved; this package is separate and traceable.
+Generated on 2026-09-13 from the current Python implementation in `/Users/ananya/Downloads/VIT/proj1-hbvhcc` using the project-local `.venv`. Existing `outputs/` files were preserved; this package is separate and traceable.
 
 ## Pipeline execution
 
@@ -16,8 +16,8 @@ The current implementation fits thresholds and models using GSE121248 only. The 
 
 ## KEY FINDINGS
 
-- The highest external-validation ROC-AUC was **XGBoost (0.984301)**.
-- At the fixed 0.5 threshold, the highest MCC among the evaluated models was **XGBoost (0.244600)**.
+- The highest external-validation ROC-AUC was **XGBoost (0.959408)**.
+- At the fixed 0.5 threshold, the highest MCC among the evaluated models was **LightGBM (0.375072)**.
 - The three-member ensemble is evaluated alongside, rather than substituted for, its individual members. Its performance must be interpreted using discrimination, calibration, and threshold metrics together; accuracy alone is not a model-selection criterion.
 - Global mean absolute SHAP ranking for the trained ensemble members was: **CXCL14, CDHR2, HHIP**. This is model attribution, not evidence of causal biological importance.
 - No biological enrichment or WGCNA result is claimed in this package because those functions were not called by the current driver and no corresponding result tables were present in `outputs/`.
