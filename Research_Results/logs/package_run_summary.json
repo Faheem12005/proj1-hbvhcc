@@ -1,0 +1,22 @@
+{
+  "data_source": "real GEO files",
+  "python_executable": "D:\\projects\\proj1-hbvhcc\\.venv\\Scripts\\python.exe",
+  "random_state": 42,
+  "training_samples": 107,
+  "validation_samples": 140,
+  "models": [
+    "Paper ANN",
+    "XGBoost",
+    "LightGBM",
+    "CatBoost",
+    "Ensemble"
+  ],
+  "metrics_file": "D:\\projects\\proj1-hbvhcc\\Research_Results\\metrics\\model_metrics_complete.csv",
+  "paired_bootstrap": {
+    "method": "paired bootstrap AUC difference",
+    "observed_difference": 0.037340210809598595,
+    "ci_low": 0.00373680662783458,
+    "ci_high": 0.07842200710737683,
+    "p_value": 0.014
+  }
+}

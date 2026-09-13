@@ -1,0 +1,3 @@
+cohort,role,HBV,HBV_HCC,n_samples,raw_gene_rows,loaded_gene_rows_after_collapse
+GSE121248,training,37,70,107,18580,3
+GSE55092,external validation,91,49,140,10791,3

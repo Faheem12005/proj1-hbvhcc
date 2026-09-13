@@ -1,0 +1,2 @@
+method,observed_difference,ci_low,ci_high,p_value
+paired bootstrap AUC difference,0.0373402108095986,0.00373680662783458,0.0784220071073768,0.014
