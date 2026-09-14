@@ -101,6 +101,12 @@ def load_data() -> tuple[pd.DataFrame, np.ndarray, pd.DataFrame, np.ndarray]:
         raise ValueError(f"Required published genes are absent from the loaded matrices: {missing}")
     return (*prepare_shared_dataset(train_expr, valid_expr, PAPER_FEATURE_GENES), y_train, y_valid)
 
+def youden_threshold(y_true: np.ndarray, probability: np.ndarray) -> float:
+    """Threshold that maximizes sensitivity + specificity - 1 (Youden's J statistic)."""
+    fpr, tpr, thresholds = roc_curve(y_true, probability)
+    j_scores = tpr - fpr
+    best_idx = np.argmax(j_scores)
+    return float(thresholds[best_idx])
 
 def metrics_row(model: str, y_true: np.ndarray, probability: np.ndarray, threshold: float = 0.5) -> dict:
     prediction = (probability >= threshold).astype(int)
@@ -126,6 +132,15 @@ def metrics_row(model: str, y_true: np.ndarray, probability: np.ndarray, thresho
         "negative_count": int(np.sum(y_true == 0)),
     }
 
+def metrics_table_at_youden_threshold(y_true: np.ndarray, probabilities: dict[str, np.ndarray]) -> pd.DataFrame:
+    """Same metrics as metrics_row(), but each model uses its own Youden's J threshold
+    instead of a fixed 0.5 cutoff -- consistent with the thresholds shown on the
+    confusion matrix figures."""
+    rows = []
+    for model, probability in probabilities.items():
+        threshold = youden_threshold(y_true, probability)
+        rows.append(metrics_row(model, y_true, probability, threshold=threshold))
+    return pd.DataFrame(rows)
 
 def save_figure(fig: plt.Figure, path: Path) -> None:
     fig.savefig(path, dpi=300, bbox_inches="tight")
@@ -161,10 +176,7 @@ def plot_confusion_matrices(y_true: np.ndarray, probabilities: dict[str, np.ndar
         prob = probabilities[model]
 
         # Youden's J: threshold that maximizes (sensitivity + specificity - 1)
-        fpr, tpr, thresholds = roc_curve(y_true, prob)
-        j_scores = tpr - fpr
-        best_idx = np.argmax(j_scores)
-        best_threshold = float(thresholds[best_idx])
+        best_threshold = youden_threshold(y_true, prob)
 
         prediction = (prob >= best_threshold).astype(int)
         matrix = confusion_matrix(y_true, prediction, labels=[0, 1])
@@ -297,6 +309,9 @@ def main() -> None:
     metric_table = pd.DataFrame([metrics_row(model, y_valid, probabilities[model]) for model in MODELS])
     metric_table.to_csv(METRICS / "model_metrics_complete.csv", index=False, float_format="%.15g")
     metric_table.round({column: 3 for column in metric_table.select_dtypes(include=[np.number]).columns}).to_csv(TABLES / "table02_model_performance_paper.csv", index=False)
+    metric_table_youden = metrics_table_at_youden_threshold(y_valid, probabilities)
+    metric_table_youden.to_csv(METRICS / "model_metrics_at_youden_threshold.csv", index=False, float_format="%.15g")
+    metric_table_youden.round({column: 3 for column in metric_table_youden.select_dtypes(include=[np.number]).columns}).to_csv(TABLES / "table05_model_performance_youden_threshold.csv", index=False)
     prediction_table = pd.DataFrame({model: probabilities[model] for model in MODELS})
     prediction_table.insert(0, "sample_id", valid_expr.columns)
     prediction_table.insert(1, "true_label", y_valid)
